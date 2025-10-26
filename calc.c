@@ -1,0 +1,227 @@
+//code written by Shamil Abdurahmanov ID:241ADB070
+
+
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <ctype.h>
+#include <math.h>
+
+static size_t error_position = 0;   
+static size_t lastnumstart = 0;			//index where the most recent number token began, helps us ereport errors when deviding by a 0 
+static size_t lastprimestart = 0;			//an index where the most recent primary number began, a primary number in this case will be a parenthesis, this will help us report errors if we are missing _Imaginary
+
+
+static int is_zero(double x) { return fabs(x) < 1e-15; }	//is_zero is used for float devision so our code doesnt return a inf/NaN
+static int is_integral_double(double x) { return fabs(x - llround(x)) < 1e-12; }	//we use is_integral_double this decides if a double is close enough to a proper integer to print it as a integer, i.e 2.9999999999 = 3
+
+static void skipspaces(const char* s, size_t length, size_t* i) {		//we use pointers to point to a string and to the integers inside the string
+	while (*i < length && isspace((unsigned char)s[*i])) (*i)++;		 //we check that the size < length and use isspace to return a nonzero value if any whitespace charecters are detected 
+}																		
+
+
+static double parse_number(const char* s, size_t length, size_t* i) {
+	skipspaces(s, length, i);		//skips whitespaces
+	size_t start = *i;                 
+
+	
+	char* endp = NULL;
+	double val = strtod(s + *i, &endp);
+
+	if (endp == s + *i) {		//if endp == s+*i means no charecters were consumed aka there were no numbers at that position 
+		
+		if (!error_position) error_position = start + 1;		//we record the position where parsing failed and store it at error_position
+		return 0.0;
+	}
+
+	
+	lastnumstart = start + 1;  
+
+	
+	*i += (size_t)(endp - (s + *i));
+	return val;		//returns parsed number
+	
+}
+static double parse_expression_at(const char* s, size_t length, size_t* i, int stop_at_rparen);		//we create a forward declaration of  parse_expression_at so later the compiler can return the double value with these parameters
+
+static double parse_primary(const char* s, size_t length, size_t* i) {
+	skipspaces(s, length, i);		//skip whitespaces
+	if (*i >= length) {			//check the length
+		if (!error_position) error_position = length + 1;	//correctly place error position 
+		return 0;
+	}
+	if (s[*i] == '('){		//we check if the expression has a parentheses
+		lastprimestart = (*i) + 1;		 //remember where this parenthesized expression started at and store at lastprimestart
+		(*i)++;
+		double val = parse_expression_at(s, length, i,1);		//we call the recursive function parse_expression_at which also calls parse_term,which calls parse_primary
+		if (error_position)return 0;
+
+		skipspaces(s, length, i);
+		if (*i >= length || s[*i] != ')') {		//checks for a closing parentheses, if there isnt one it gives us a error 
+			if (!error_position) error_position = (*i < length) ? (*i + 1) : (length + 1);
+			return 0;
+		}
+		(*i)++;
+		return val;
+	}
+	double val = parse_number(s, length, i);
+	if (error_position) return 0;
+
+	lastprimestart = lastnumstart;		//tells the parser, “If this primary is just a number, its start position is the same as the number’s start, this is used for precise error reporting
+	return val;
+}
+
+
+
+static double parse_term(const char* s, size_t length, size_t* i) {		//
+	double result = parse_primary(s, length, i);		//first we parse for expresions in parentheses i.e primary
+	if (error_position) return 0;
+
+	while (1) {			 //we enter a operator loop to look for '*' or '/' operators
+		skipspaces(s, length, i);		//check for the '*' and '/' operators, and if dont find them we break
+		if (*i >= length) break;
+
+		char op = s[*i];	
+		if (op != '*' && op != '/') break;
+		(*i)++;
+
+		double righthand = parse_primary(s, length, i);
+		if (error_position) return 0;
+		if (op == '*') {
+			result *= righthand;		//in this case our result is the left-hand of the mathematical expression and after getting both result and righthand we multiply them
+
+		}
+		else {
+			if (is_zero(righthand)) {    
+				if (!error_position) error_position = lastprimestart;
+				return 0.0;
+			}
+			result /= righthand;
+
+		}
+
+			
+
+	}
+	return result;
+}
+
+static double parse_expression_at(const char* s, size_t length, size_t* i, int stop_at_rparen) {
+	double result = parse_term(s, length, i);		 //we parse the first term
+	if (error_position) return 0.0;		//if parsing fails we set the correct error position
+
+	while (1) {
+		skipspaces(s, length, i);
+		if (*i >= length) break;		//if we reach the end of the input we stop 
+
+		if (s[*i] == ')') {		//if we find the closing parentheses we stop
+			if (stop_at_rparen) {
+				
+				break;
+			}
+			else {
+				
+				if (!error_position) error_position = *i + 1;
+				return 0.0;
+			}
+		}
+
+		char op = s[*i];
+		if (op != '+' && op != '-') {
+			if (!error_position) error_position = *i + 1; 
+			return 0.0;
+		}
+		(*i)++;
+
+		double righthand = parse_term(s, length, i);
+		if (error_position) return 0.0;
+
+		if (op == '+') result += righthand;
+		else           result -= righthand;
+	}
+	return result;
+}
+
+
+static double evalaluateexpression(const char* s, size_t length) {
+	size_t idx = 0;
+	return parse_expression_at(s, length, &idx,0);
+
+}
+
+int main(int argc, char** argv) {
+	if (argc != 2) {
+		fprintf(stderr, "Usage: %s input.txt\n", argv[0]);
+		return 1;
+	}
+	FILE* f = fopen(argv[1], "rb");
+	if (!f) {
+		perror("fopen");
+		return 1;
+	}
+	char buffer[20000]; 
+	size_t n = fread(buffer, 1, sizeof(buffer) - 1, f);
+	fclose(f);
+	buffer[n] = '\0';
+
+	size_t pos = 0;
+	while (pos < n) {
+		
+		size_t line_start = pos;
+		size_t line_end = pos;
+		while (line_end < n && buffer[line_end] != '\n' && buffer[line_end] != '\r') {
+			line_end++;
+		}
+
+		const char* line = buffer + line_start;
+		size_t line_len = line_end - line_start;
+
+		
+		size_t t = 0;
+		skipspaces(line, line_len, &t);
+		if (t < line_len) {
+			
+			error_position = 0;
+			lastnumstart = 0;
+			lastprimestart = 0;
+
+			double result = evalaluateexpression(line, line_len);
+
+			if (error_position) {
+				printf("ERROR:%zu\n", error_position);
+			}
+			else {
+				if (is_integral_double(result)) {
+					printf("%lld\n", (long long)llround(result));
+				}
+				else {
+					printf("%.15g\n", result);
+				}
+			}
+		}
+
+		
+		if (line_end < n) {
+			if (buffer[line_end] == '\r' && line_end + 1 < n && buffer[line_end + 1] == '\n') {
+				pos = line_end + 2;
+			}
+			else {
+				pos = line_end + 1;
+			}
+		}
+		else {
+			pos = line_end;
+		}
+	}
+	return 0;
+}
+
+
+// Recursive descent parser https://en.wikipedia.org/wiki/Recursive_descent_parser
+//Recursive descent parser https://www.geeksforgeeks.org/compiler-design/recursive-descent-parser/
+//floating point guide https://floating-point-gui.de/errors/comparison/
+//POSIX fopen(), fread(), fclose() documentation https://man7.org/linux/man-pages/man3/fopen.3.html
+// c code basic arithmetic operations https://www.geeksforgeeks.org/c/arithmetic-operators-in-c/
+//C Arithmetic Operators https://www.w3schools.com/c/c_operators_arithmetic.php
+//c code buffer https://stackoverflow.com/questions/27993971/understanding-buffering-in-c
