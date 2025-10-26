@@ -1,5 +1,8 @@
 //code written by Shamil Abdurahmanov ID:241ADB070
-
+//my github repository https://github.com/Mightymob0303/Shamil-Abdurahmanov-codes
+//instruction how to run the code, visit my github repository and create/use a codespace and use my code there, run 'gcc -O2 -Wall -Wextra -std=c17 -o calc calc.c -lm' in the terminal.
+//and write 'echo "2 + 2" > input.txt' in order to create a input file and write a mathematical expression in it, "2+2" is a example you can write whatever you want in your work
+//and in the end type "./calc input.txt" to run the code 
 
 
 
@@ -8,7 +11,7 @@
 #include <ctype.h>
 #include <math.h>
 
-static size_t error_position = 0;   
+static size_t error_position = 0;			//position indexes
 static size_t lastnumstart = 0;			//index where the most recent number token began, helps us ereport errors when deviding by a 0 
 static size_t lastprimestart = 0;			//an index where the most recent primary number began, a primary number in this case will be a parenthesis, this will help us report errors if we are missing _Imaginary
 
@@ -18,43 +21,43 @@ static int is_integral_double(double x) { return fabs(x - llround(x)) < 1e-12; }
 
 static void skipspaces(const char* s, size_t length, size_t* i) {		//we use pointers to point to a string and to the integers inside the string
 	while (*i < length && isspace((unsigned char)s[*i])) (*i)++;		 //we check that the size < length and use isspace to return a nonzero value if any whitespace charecters are detected 
-}																		
+}
 
 
 static double parse_number(const char* s, size_t length, size_t* i) {
-	skipspaces(s, length, i);		//skips whitespaces
-	size_t start = *i;                 
+	skipspaces(s, length, i);		
+	size_t start = *i;
 
-	
+
 	char* endp = NULL;
 	double val = strtod(s + *i, &endp);
 
 	if (endp == s + *i) {		//if endp == s+*i means no charecters were consumed aka there were no numbers at that position 
-		
+
 		if (!error_position) error_position = start + 1;		//we record the position where parsing failed and store it at error_position
 		return 0.0;
 	}
 
-	
-	lastnumstart = start + 1;  
 
-	
+	lastnumstart = start + 1;
+
+
 	*i += (size_t)(endp - (s + *i));
 	return val;		//returns parsed number
-	
+
 }
 static double parse_expression_at(const char* s, size_t length, size_t* i, int stop_at_rparen);		//we create a forward declaration of  parse_expression_at so later the compiler can return the double value with these parameters
 
 static double parse_primary(const char* s, size_t length, size_t* i) {
-	skipspaces(s, length, i);		//skip whitespaces
-	if (*i >= length) {			//check the length
+	skipspaces(s, length, i);		
+	if (*i >= length) {			
 		if (!error_position) error_position = length + 1;	//correctly place error position 
 		return 0;
 	}
-	if (s[*i] == '('){		//we check if the expression has a parentheses
+	if (s[*i] == '(') {		//we check if the expression has a parentheses
 		lastprimestart = (*i) + 1;		 //remember where this parenthesized expression started at and store at lastprimestart
 		(*i)++;
-		double val = parse_expression_at(s, length, i,1);		//we call the recursive function parse_expression_at which also calls parse_term,which calls parse_primary
+		double val = parse_expression_at(s, length, i, 1);		//we call the recursive function parse_expression_at which also calls parse_term,which calls parse_primary
 		if (error_position)return 0;
 
 		skipspaces(s, length, i);
@@ -82,7 +85,7 @@ static double parse_term(const char* s, size_t length, size_t* i) {		//
 		skipspaces(s, length, i);		//check for the '*' and '/' operators, and if dont find them we break
 		if (*i >= length) break;
 
-		char op = s[*i];	
+		char op = s[*i];
 		if (op != '*' && op != '/') break;
 		(*i)++;
 
@@ -93,7 +96,7 @@ static double parse_term(const char* s, size_t length, size_t* i) {		//
 
 		}
 		else {
-			if (is_zero(righthand)) {    
+			if (is_zero(righthand)) {
 				if (!error_position) error_position = lastprimestart;
 				return 0.0;
 			}
@@ -101,7 +104,7 @@ static double parse_term(const char* s, size_t length, size_t* i) {		//
 
 		}
 
-			
+
 
 	}
 	return result;
@@ -117,11 +120,11 @@ static double parse_expression_at(const char* s, size_t length, size_t* i, int s
 
 		if (s[*i] == ')') {		//if we find the closing parentheses we stop
 			if (stop_at_rparen) {
-				
+
 				break;
 			}
 			else {
-				
+
 				if (!error_position) error_position = *i + 1;
 				return 0.0;
 			}
@@ -129,7 +132,7 @@ static double parse_expression_at(const char* s, size_t length, size_t* i, int s
 
 		char op = s[*i];
 		if (op != '+' && op != '-') {
-			if (!error_position) error_position = *i + 1; 
+			if (!error_position) error_position = *i + 1;
 			return 0.0;
 		}
 		(*i)++;
@@ -146,30 +149,30 @@ static double parse_expression_at(const char* s, size_t length, size_t* i, int s
 
 static double evalaluateexpression(const char* s, size_t length) {
 	size_t idx = 0;
-	return parse_expression_at(s, length, &idx,0);
+	return parse_expression_at(s, length, &idx, 0);
 
 }
 
 int main(int argc, char** argv) {
-	if (argc != 2) {
+	if (argc != 2) {		//Expect exactly one input file argument
 		fprintf(stderr, "Usage: %s input.txt\n", argv[0]);
 		return 1;
 	}
-	FILE* f = fopen(argv[1], "rb");
+	FILE* f = fopen(argv[1], "rb");	//Open file in binary mode (handles any line endings)
 	if (!f) {
-		perror("fopen");
+		perror("fopen");	//Print system error if file cannot open
 		return 1;
 	}
-	char buffer[20000]; 
+	char buffer[20000];		//Buffer large enough for multi - line inputs(up to ~10k chars)
 	size_t n = fread(buffer, 1, sizeof(buffer) - 1, f);
 	fclose(f);
-	buffer[n] = '\0';
+	buffer[n] = '\0';	//Null terminate for safe string operations
 
 	size_t pos = 0;
-	while (pos < n) {
-		
-		size_t line_start = pos;
-		size_t line_end = pos;
+	while (pos < n) {	//Process each line separately
+
+		size_t line_start = pos;	//Start index of current line
+		size_t line_end = pos;		//End index of current line
 		while (line_end < n && buffer[line_end] != '\n' && buffer[line_end] != '\r') {
 			line_end++;
 		}
@@ -177,11 +180,13 @@ int main(int argc, char** argv) {
 		const char* line = buffer + line_start;
 		size_t line_len = line_end - line_start;
 
-		
+
 		size_t t = 0;
 		skipspaces(line, line_len, &t);
 		if (t < line_len) {
-			
+
+			//Reset error tracking for each new line
+
 			error_position = 0;
 			lastnumstart = 0;
 			lastprimestart = 0;
@@ -190,7 +195,7 @@ int main(int argc, char** argv) {
 
 			if (error_position) {
 				printf("ERROR:%zu\n", error_position);
-			}
+			}	//Print integer results as whole numbers, others with %.15g format specifier
 			else {
 				if (is_integral_double(result)) {
 					printf("%lld\n", (long long)llround(result));
@@ -201,7 +206,7 @@ int main(int argc, char** argv) {
 			}
 		}
 
-		
+
 		if (line_end < n) {
 			if (buffer[line_end] == '\r' && line_end + 1 < n && buffer[line_end + 1] == '\n') {
 				pos = line_end + 2;
@@ -225,3 +230,4 @@ int main(int argc, char** argv) {
 // c code basic arithmetic operations https://www.geeksforgeeks.org/c/arithmetic-operators-in-c/
 //C Arithmetic Operators https://www.w3schools.com/c/c_operators_arithmetic.php
 //c code buffer https://stackoverflow.com/questions/27993971/understanding-buffering-in-c
+//parse a string https://stackoverflow.com/questions/924955/parse-a-string-in-c
