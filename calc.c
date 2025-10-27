@@ -15,7 +15,6 @@ static size_t error_position = 0;			//position indexes
 static size_t lastnumstart = 0;			//index where the most recent number token began, helps us ereport errors when deviding by a 0 
 static size_t lastprimestart = 0;			//an index where the most recent primary number began, a primary number in this case will be a parenthesis, this will help us report errors if we are missing _Imaginary
 
-
 static int is_zero(double x) { return fabs(x) < 1e-15; }	//is_zero is used for float devision so our code doesnt return a inf/NaN
 static int is_integral_double(double x) { return fabs(x - llround(x)) < 1e-12; }	//we use is_integral_double this decides if a double is close enough to a proper integer to print it as a integer, i.e 2.9999999999 = 3
 
@@ -61,54 +60,68 @@ static double parse_primary(const char* s, size_t length, size_t* i) {
 		if (error_position)return 0;
 
 		skipspaces(s, length, i);
-		if (*i >= length || s[*i] != ')') {		//checks for a closing parentheses, if there isnt one it gives us a error 
-			if (!error_position) error_position = (*i < length) ? (*i + 1) : (length + 1);
-			return 0;
-		}
+		if (*i >= length || s[*i] != ')') {
+    if (!error_position) {
+        // Point at the last parsed number inside these parens (e.g., the '5' in your example).
+        // Fallback to end-of-line if we never saw a number.
+        error_position = (lastnumstart != 0) ? lastnumstart
+                                             : ((*i < length) ? (*i + 1) : (length + 1));
+    }
+    return 0;
+}
+
 		(*i)++;
 		return val;
 	}
 	double val = parse_number(s, length, i);
 	if (error_position) return 0;
 
-	lastprimestart = lastnumstart;		//tells the parser, “If this primary is just a number, its start position is the same as the number’s start, this is used for precise error reporting
+	lastprimestart = lastnumstart;		//tells the parser, ï¿½If this primary is just a number, its start position is the same as the numberï¿½s start, this is used for precise error reporting
 	return val;
 }
 
 
 
-static double parse_term(const char* s, size_t length, size_t* i) {		//
-	double result = parse_primary(s, length, i);		//first we parse for expresions in parentheses i.e primary
-	if (error_position) return 0;
+static double parse_term(const char* s, size_t length, size_t* i) {
+    double result = parse_primary(s, length, i);
+    if (error_position) return 0;
 
-	while (1) {			 //we enter a operator loop to look for '*' or '/' operators
-		skipspaces(s, length, i);		//check for the '*' and '/' operators, and if dont find them we break
-		if (*i >= length) break;
+    while (1) {
+        skipspaces(s, length, i);
 
-		char op = s[*i];
-		if (op != '*' && op != '/') break;
-		(*i)++;
+        // If we're at end *before* seeing an operator, we're done (not an error).
+        if (*i >= length) break;
 
-		double righthand = parse_primary(s, length, i);
-		if (error_position) return 0;
-		if (op == '*') {
-			result *= righthand;		//in this case our result is the left-hand of the mathematical expression and after getting both result and righthand we multiply them
+        char op = s[*i];
+        if (op != '*' && op != '/') break;
 
-		}
-		else {
-			if (is_zero(righthand)) {
-				if (!error_position) error_position = lastprimestart;
-				return 0.0;
-			}
-			result /= righthand;
+        // Remember where the operator is for precise error reporting.
+        size_t op_pos = *i;    // 0-based
+        (*i)++;                // consume operator
 
-		}
+        // There must be something after the operator.
+        skipspaces(s, length, i);
+        if (*i >= length) {
+            if (!error_position) error_position = op_pos + 1;  // report at the operator (1-based)
+            return 0;
+        }
 
+        double righthand = parse_primary(s, length, i);
+        if (error_position) return 0;
 
-
-	}
-	return result;
+        if (op == '*') {
+            result *= righthand;
+        } else {
+            if (is_zero(righthand)) {
+                if (!error_position) error_position = op_pos + 2;
+                return 0.0;
+            }
+            result /= righthand;
+        }
+    }
+    return result;
 }
+
 
 static double parse_expression_at(const char* s, size_t length, size_t* i, int stop_at_rparen) {
 	double result = parse_term(s, length, i);		 //we parse the first term
@@ -137,6 +150,13 @@ static double parse_expression_at(const char* s, size_t length, size_t* i, int s
 		}
 		(*i)++;
 
+		// Check if there's actually something after the operator
+		skipspaces(s, length, i);
+		if (*i >= length) {
+			if (!error_position) error_position = *i + 1;
+			return 0.0;
+		}
+
 		double righthand = parse_term(s, length, i);
 		if (error_position) return 0.0;
 
@@ -147,7 +167,7 @@ static double parse_expression_at(const char* s, size_t length, size_t* i, int s
 }
 
 
-static double evalaluateexpression(const char* s, size_t length) {
+static double evaluate_expression(const char* s, size_t length) {
 	size_t idx = 0;
 	return parse_expression_at(s, length, &idx, 0);
 
@@ -191,7 +211,7 @@ int main(int argc, char** argv) {
 			lastnumstart = 0;
 			lastprimestart = 0;
 
-			double result = evalaluateexpression(line, line_len);
+			double result = evaluate_expression(line, line_len);
 
 			if (error_position) {
 				printf("ERROR:%zu\n", error_position);
@@ -222,7 +242,6 @@ int main(int argc, char** argv) {
 	return 0;
 }
 
-
 // Recursive descent parser https://en.wikipedia.org/wiki/Recursive_descent_parser
 //Recursive descent parser https://www.geeksforgeeks.org/compiler-design/recursive-descent-parser/
 //floating point guide https://floating-point-gui.de/errors/comparison/
@@ -230,4 +249,5 @@ int main(int argc, char** argv) {
 // c code basic arithmetic operations https://www.geeksforgeeks.org/c/arithmetic-operators-in-c/
 //C Arithmetic Operators https://www.w3schools.com/c/c_operators_arithmetic.php
 //c code buffer https://stackoverflow.com/questions/27993971/understanding-buffering-in-c
+
 //parse a string https://stackoverflow.com/questions/924955/parse-a-string-in-c
