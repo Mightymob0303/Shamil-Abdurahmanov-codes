@@ -10,6 +10,9 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <math.h>
+#include <dirent.h>     // opendir, readdir
+#include <sys/stat.h>   // mkdir
+#include <string.h>
 
 static size_t error_position = 0;			//position indexes
 static size_t lastnumstart = 0;			//index where the most recent number token began, helps us ereport errors when deviding by a 0 
@@ -17,6 +20,18 @@ static size_t lastprimestart = 0;			//an index where the most recent primary num
 
 static int is_zero(double x) { return fabs(x) < 1e-15; }	//is_zero is used for float devision so our code doesnt return a inf/NaN
 static int is_integral_double(double x) { return fabs(x - llround(x)) < 1e-12; }	//we use is_integral_double this decides if a double is close enough to a proper integer to print it as a integer, i.e 2.9999999999 = 3
+
+
+int ensure_dir(const char *dirname) {
+    struct stat st = {0};
+    if (stat(dirname, &st) == -1) {
+        if (mkdir(dirname, 0775) != 0) {
+            perror("mkdir");
+            return 0;
+        }
+    }
+    return 1;
+}
 
 static void skipspaces(const char* s, size_t length, size_t* i) {		//we use pointers to point to a string and to the integers inside the string
 	while (*i < length && isspace((unsigned char)s[*i])) (*i)++;		 //we check that the size < length and use isspace to return a nonzero value if any whitespace charecters are detected 
@@ -76,7 +91,7 @@ static double parse_primary(const char* s, size_t length, size_t* i) {
 	double val = parse_number(s, length, i);
 	if (error_position) return 0;
 
-	lastprimestart = lastnumstart;		//tells the parser, �If this primary is just a number, its start position is the same as the number�s start, this is used for precise error reporting
+	lastprimestart = lastnumstart;		//tells the parser,  If this primary is just a number, its start position is the same as the number s start, this is used for precise error reporting
 	return val;
 }
 
@@ -174,6 +189,14 @@ static double evaluate_expression(const char* s, size_t length) {
 }
 
 int main(int argc, char** argv) {
+	
+	const char *outdir = "labs_Sh-Abdurahmanov_241ADB070";
+ensure_dir(outdir);
+	
+	char outpath[512];
+snprintf(outpath, sizeof outpath,
+         "%s/task1_Shamil_Abdurahmanov_241ADB070.txt", outdir);
+
 	if (argc != 2) {		//Expect exactly one input file argument
 		fprintf(stderr, "Usage: %s input.txt\n", argv[0]);
 		return 1;
@@ -213,17 +236,18 @@ int main(int argc, char** argv) {
 
 			double result = evaluate_expression(line, line_len);
 
-			if (error_position) {
-				printf("ERROR:%zu\n", error_position);
-			}	//Print integer results as whole numbers, others with %.15g format specifier
-			else {
-				if (is_integral_double(result)) {
-					printf("%lld\n", (long long)llround(result));
-				}
-				else {
-					printf("%.15g\n", result);
-				}
-			}
+			FILE *out = fopen(outpath, "w");
+if (!out) { perror("fopen output"); return 1; }
+
+if (error_position)
+    fprintf(out, "ERROR:%zu\n", error_position);
+else if (is_integral_double(result))
+    fprintf(out, "%lld\n", (long long)llround(result));
+else
+    fprintf(out, "%.15g\n", result);
+
+fclose(out);
+
 		}
 
 
@@ -251,3 +275,6 @@ int main(int argc, char** argv) {
 //c code buffer https://stackoverflow.com/questions/27993971/understanding-buffering-in-c
 
 //parse a string https://stackoverflow.com/questions/924955/parse-a-string-in-c
+
+
+
